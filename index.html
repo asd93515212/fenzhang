@@ -50,20 +50,35 @@ input,select{width:100%;font:inherit;font-size:18px;padding:11px 12px;border-rad
 .pv div{display:flex;justify-content:space-between;padding:2px 0}
 .pv .sum{border-top:1px solid var(--ln);margin-top:4px;padding-top:6px;color:var(--mu)}
 .row{display:flex;gap:10px;margin-top:16px}
+.mnav{display:flex;align-items:center;justify-content:space-between;margin:14px 0 0}.mnav button{border:0;background:var(--sf);color:var(--tx);font:inherit;font-size:20px;width:44px;height:40px;border-radius:10px}
+.cr{display:flex;align-items:center;gap:8px;padding:3px 2px}.cr>span:first-child{width:64px;flex:none}.cb{flex:1;height:8px;border-radius:4px;background:var(--ln);overflow:hidden}.cb i{display:block;height:100%;background:var(--ac)}.cr b{min-width:84px;text-align:right}
+.x{border:0;background:none;color:var(--mu);font-size:22px;padding:0 4px}
 </style>
 <link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="icon-180.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="分帳本"><meta name="apple-mobile-web-app-status-bar-style" content="default"><meta name="theme-color" content="#0f6b62">
 </head>
 <body>
 <main>
-<div class="tabs" role="tablist"><button role="tab" id="t-twd" aria-selected="true">台幣帳戶</button><button role="tab" id="t-rmb" aria-selected="false">人民幣帳戶</button></div>
-<div class="chips" id="fl" style="margin-top:14px"></div><div class="total"><small id="tl">台幣總額</small><b id="tv"></b></div>
+<div class="tabs" role="tablist"><button role="tab" id="t-twd" aria-selected="true">台幣帳戶</button><button role="tab" id="t-rmb" aria-selected="false">人民幣帳戶</button><button role="tab" id="t-cc" aria-selected="false">信用卡</button></div>
+<div id="bank"><div class="chips" id="fl" style="margin-top:14px"></div><div class="total"><small id="tl">台幣總額</small><b id="tv"></b></div>
 <div class="bar" id="bar"></div>
 <div class="grid" id="grid"></div>
 <div class="acts"><button class="btn" id="bin">入帳</button><button class="btn o" id="bout">支出</button><button class="btn o" id="badj">調整</button></div>
 <h2>對帳</h2>
 <div class="rec"><label for="real" id="rl" style="margin-top:0">帳戶實際餘額</label><input id="real" type="number" inputmode="decimal" placeholder="輸入銀行 App 上的金額"><div id="diff" style="margin-top:8px;color:var(--mu)"></div></div>
 <h2>最近紀錄</h2>
-<div class="log" id="log"></div>
+<div class="log" id="log"></div></div>
+<section id="cc" hidden>
+<div class="mnav"><button id="mp" aria-label="上個月">‹</button><b id="ml"></b><button id="mn" aria-label="下個月">›</button></div>
+<div class="total"><small>目前未還總額（所有月份累計）</small><b id="ot"></b><small id="ct"></small></div>
+<div class="bar" id="cbar"></div>
+<div class="grid" id="cgrid"></div>
+<div class="acts"><button class="btn" id="bcc">刷卡</button><button class="btn o" id="bpay">還款</button></div>
+<h2>用在哪裡</h2>
+<div class="chips" id="cfl" style="margin-bottom:10px"></div>
+<div class="rec" id="ccat"></div>
+<h2>消費與還款明細</h2>
+<div class="log" id="clog"></div>
+</section>
 <h2>備份</h2>
 <div class="acts" style="margin-top:0"><button class="btn o" id="bk">複製備份</button><button class="btn o" id="rs">還原備份</button></div>
 </main>
@@ -77,7 +92,7 @@ var S={bal:{twd:mk('twd'),rmb:mk('rmb')},log:[],pref:{rate:1,live:40}};
 try{var s=localStorage.getItem('splitledger');if(s){S=JSON.parse(s)}}catch(e){}
 ['twd','rmb'].forEach(function(a){var b=S.bal[a];if(typeof b[N[a][0][0]]=='number'){var z=mk(a);z[CH[a][0][0]]=b;S.bal[a]=z}});
 function save(){try{localStorage.setItem('splitledger',JSON.stringify(S))}catch(e){}}
-var A='twd',mode='in',rate=S.pref.rate,lv=S.pref.live;
+S.cc=S.cc||[];S.pay=S.pay||[];var A='twd',mode='in',rate=S.pref.rate,lv=S.pref.live;
 function $(i){return document.getElementById(i)}
 function r2(x){return Math.round(x*100)/100}
 function fmt(x){return (A=='twd'?'NT$ ':'¥ ')+x.toLocaleString('zh-TW',{minimumFractionDigits:A=='twd'?0:2,maximumFractionDigits:2})}
@@ -90,7 +105,7 @@ function split(a,amt){var o={};
  if(a=='twd'){o.buy=Math.round(amt*.4);o.self=Math.round(amt*.3);o.card=amt-o.buy-o.self}
  else{o.keep=r2(amt*rate/100);var rest=amt-o.keep;o.reserve=r2(rest*.05);var rem=r2(rest-o.reserve);o.live=r2(rem*lv/100);o.stock=r2(rem-o.live)}
  return o}
-function render(){
+function render(){$('t-cc').setAttribute('aria-selected',A=='cc');$('bank').hidden=A=='cc';$('cc').hidden=A!='cc';if(A=='cc'){$('t-twd').setAttribute('aria-selected','false');$('t-rmb').setAttribute('aria-selected','false');renderCC();return}
  $('t-twd').setAttribute('aria-selected',A=='twd');$('t-rmb').setAttribute('aria-selected',A=='rmb');
  var fl='<button data-c="all" aria-pressed="'+(F[A]=='all')+'">全部</button>';CH[A].forEach(function(c){fl+='<button data-c="'+c[0]+'" aria-pressed="'+(F[A]==c[0])+'">'+c[1]+'</button>'});$('fl').innerHTML=fl;$('rl').textContent=F[A]=='all'?'全部合計的實際餘額':cn(A,F[A])+'帳戶的實際餘額';$('tl').textContent=(A=='twd'?'台幣':'人民幣')+(F[A]=='all'?'總額':'・'+cn(A,F[A]));$('tv').textContent=fmt(total(A));
  var t=total(A),V=vals(A),bar='',g='';
@@ -128,6 +143,57 @@ function commit(){var a=parseFloat($('amt').value);if(!(a>0)){$('amt').focus();r
   S.log.unshift({a:A,c:c,t:'入帳・'+cn(A,c),v:a,d:ds+(A=='rmb'?'・留存 '+rate+'%・活存 '+lv+'%':'・40/30/30')});S.pref.rate=rate;S.pref.live=lv;(S.pref.ch=S.pref.ch||{})[A]=c}
  else{var w=$('wl').value,sg=mode=='adj'?dir:-1;S.bal[A][c][w]=r2(S.bal[A][c][w]+sg*a);var nm=N[A].filter(function(x){return x[0]==w})[0][1];S.log.unshift({a:A,c:c,t:(mode=='adj'?'調整・':'支出・')+nm,v:sg*a,d:ds+'・'+cn(A,c)+(mode=='adj'&&$('nt').value?'・'+$('nt').value.replace(/[<>&]/g,''):'')})}
  save();$('dlg').close();render()}
+var CARDS=[['cathay','國泰','--c1'],['mega','兆豐','--c2'],['taishin','台新','--c3'],['esun','玉山','--c4']],CATS=['餐飲','購物','交通','日常','代購進貨','其他'];
+var _n=new Date(),ym=_n.getFullYear()+'-'+('0'+(_n.getMonth()+1)).slice(-2),ccF='all',ccat='餐飲';
+function esc(s){return String(s).replace(/[&<>"']/g,function(c){return '&#'+c.charCodeAt(0)+';'})}
+function nt(x){return 'NT$ '+x.toLocaleString('zh-TW',{maximumFractionDigits:0})}
+function cardName(k){var r=CARDS.filter(function(c){return c[0]==k})[0];return r?r[1]:k}
+function renderCC(){
+ var L=S.cc.filter(function(e){return e.d.slice(0,7)==ym}),tot=0,per={};
+ CARDS.forEach(function(c){per[c[0]]=0});
+ L.forEach(function(e){per[e.card]=(per[e.card]||0)+e.amt;tot+=e.amt});
+ var F2=L.filter(function(e){return ccF=='all'||e.card==ccF});
+ $('ml').textContent=ym.replace('-','年')+'月';$('ct').textContent='本月刷卡 '+nt(tot);var ch={},py={},ow={},oa=0,op=0;CARDS.forEach(function(c){ch[c[0]]=0;py[c[0]]=0});S.cc.forEach(function(e){ch[e.card]=(ch[e.card]||0)+e.amt});S.pay.forEach(function(e){py[e.card]=(py[e.card]||0)+e.amt});CARDS.forEach(function(c){ow[c[0]]=r2(ch[c[0]]-py[c[0]]);oa+=ow[c[0]];op+=Math.max(0,ow[c[0]])});oa=r2(oa);$('ot').textContent=nt(oa);
+ var bar='',g='';
+ CARDS.forEach(function(c){var k=c[0];bar+='<i style="width:'+(op>0?Math.max(0,ow[k])/op*100:0)+'%;background:var('+c[2]+')"></i>';g+='<div class="w" style="--k:var('+c[2]+')"><small>'+c[1]+'・未還</small><b>'+nt(ow[k])+'</b><small>累計刷 '+nt(ch[k])+'<br>已還 '+nt(py[k])+'</small></div>'});
+ $('cbar').innerHTML=bar;$('cgrid').innerHTML=g;
+ var fl='<button data-c="all" aria-pressed="'+(ccF=='all')+'">全部</button>';
+ CARDS.forEach(function(c){fl+='<button data-c="'+c[0]+'" aria-pressed="'+(ccF==c[0])+'">'+c[1]+'</button>'});$('cfl').innerHTML=fl;
+ var cat={},ct=0;F2.forEach(function(e){cat[e.cat]=(cat[e.cat]||0)+e.amt;ct+=e.amt});
+ var h='',ks=Object.keys(cat).sort(function(a,b){return cat[b]-cat[a]});
+ ks.forEach(function(k){h+='<div class="cr"><span>'+esc(k)+'</span><span class="cb"><i style="width:'+(cat[k]/ct*100)+'%"></i></span><b>'+nt(cat[k])+'</b></div>'});
+ $('ccat').innerHTML=h||'<div style="color:var(--mu)">這個月還沒有紀錄。</div>';
+ var lg='',all=F2.map(function(e){return {t:'c',e:e}}).concat(S.pay.filter(function(e){return e.d.slice(0,7)==ym&&(ccF=='all'||e.card==ccF)}).map(function(e){return {t:'p',e:e}}));
+ all.sort(function(a,b){return a.e.d<b.e.d?1:a.e.d>b.e.d?-1:b.e.id-a.e.id});
+ all.forEach(function(o){var e=o.e,p=o.t=='p';lg+='<div><span>'+(p?'還款':esc(e.cat))+(e.note?'・'+esc(e.note):'')+'<small>'+e.d.slice(5).replace('-','/')+'・'+cardName(e.card)+'</small></span><span><b class="'+(p?'pos':'')+'">'+(p?'−':'')+nt(e.amt)+'</b> <button class="x" data-t="'+o.t+'" data-id="'+e.id+'" aria-label="刪除">×</button></span></div>'});
+ $('clog').innerHTML=lg||'<div><span>沒有紀錄。按「刷卡」新增。</span></div>'}
+function sm(n){var p=ym.split('-'),d=new Date(+p[0],+p[1]-1+n,1);ym=d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2);render()}
+function openCC(){var td=new Date(),ds=td.getFullYear()+'-'+('0'+(td.getMonth()+1)).slice(-2)+'-'+('0'+td.getDate()).slice(-2),h='';mode='cc';
+ h+='<b style="font-size:18px">新增刷卡紀錄</b><label for="ccd">刷哪張卡</label><select id="ccd">'+CARDS.map(function(c){return '<option value="'+c[0]+'"'+(c[0]==S.pref.card?' selected':'')+'>'+c[1]+'</option>'}).join('')+'</select>';
+ h+='<label for="amt">金額</label><input id="amt" type="number" inputmode="decimal" placeholder="0"><label>用在哪裡</label><div class="chips" id="cc2">'+CATS.map(function(c){return '<button data-v="'+c+'">'+c+'</button>'}).join('')+'</div>';
+ h+='<label for="nt">店家／備註（選填）</label><input id="nt" type="text" placeholder="例如：全聯、蝦皮進貨" style="font-size:16px"><label for="dt">日期</label><input id="dt" type="date" value="'+ds+'">';
+ h+='<div class="row"><button class="btn o" id="cx">取消</button><button class="btn" id="ok">確認</button></div>';
+ $('dbody').innerHTML=h;$('dlg').showModal();
+ chips('cc2',ccat,function(v){ccat=v});
+ $('cx').onclick=function(){$('dlg').close()};
+ $('ok').onclick=function(){var a=parseFloat($('amt').value);if(!(a>0)){$('amt').focus();return}var d=$('dt').value||ds;S.cc.push({id:Date.now(),card:$('ccd').value,amt:a,cat:ccat,note:$('nt').value.replace(/[<>&]/g,''),d:d});S.pref.card=$('ccd').value;ym=d.slice(0,7);save();$('dlg').close();render()};
+ setTimeout(function(){$('amt').focus()},50)}
+function owedOf(k){var o=0;S.cc.forEach(function(e){if(e.card==k)o+=e.amt});S.pay.forEach(function(e){if(e.card==k)o-=e.amt});return r2(o)}
+function openPay(){var td=new Date(),ds=td.getFullYear()+'-'+('0'+(td.getMonth()+1)).slice(-2)+'-'+('0'+td.getDate()).slice(-2),h='';mode='cc';
+ h+='<b style="font-size:18px">新增還款</b><label for="ccd">還哪張卡</label><select id="ccd">'+CARDS.map(function(c){return '<option value="'+c[0]+'"'+(c[0]==S.pref.card?' selected':'')+'>'+c[1]+'</option>'}).join('')+'</select><div id="oh" style="color:var(--mu);margin-top:6px"></div>';
+ h+='<label for="amt">還款金額</label><input id="amt" type="number" inputmode="decimal" placeholder="0"><div class="chips" style="margin-top:8px"><button id="full">填入全部未還金額</button></div>';
+ h+='<label for="nt">備註（選填）</label><input id="nt" type="text" placeholder="例如：第一期、最低應繳" style="font-size:16px"><label for="dt">日期</label><input id="dt" type="date" value="'+ds+'">';
+ h+='<div class="row"><button class="btn o" id="cx">取消</button><button class="btn" id="ok">確認還款</button></div>';
+ $('dbody').innerHTML=h;$('dlg').showModal();
+ function oh(){$('oh').textContent='這張卡目前未還 '+nt(owedOf($('ccd').value))}oh();$('ccd').onchange=oh;
+ $('full').onclick=function(){$('amt').value=Math.max(0,owedOf($('ccd').value))};
+ $('cx').onclick=function(){$('dlg').close()};
+ $('ok').onclick=function(){var a=parseFloat($('amt').value);if(!(a>0)){$('amt').focus();return}var d=$('dt').value||ds;S.pay.push({id:Date.now(),card:$('ccd').value,amt:a,note:$('nt').value.replace(/[<>&]/g,''),d:d});S.pref.card=$('ccd').value;ym=d.slice(0,7);save();$('dlg').close();render()};
+ setTimeout(function(){$('amt').focus()},50)}
+$('bpay').onclick=openPay;
+$('t-cc').onclick=function(){A='cc';render()};$('bcc').onclick=openCC;$('mp').onclick=function(){sm(-1)};$('mn').onclick=function(){sm(1)};
+$('cfl').onclick=function(e){var b=e.target.closest('button');if(b){ccF=b.dataset.c;render()}};
+$('clog').onclick=function(e){var b=e.target.closest('.x');if(!b)return;if(confirm('刪除這筆紀錄？')){var K=b.dataset.t=='p'?'pay':'cc';S[K]=S[K].filter(function(x){return String(x.id)!=b.dataset.id});save();render()}};
 $('t-twd').onclick=function(){A='twd';render()};$('t-rmb').onclick=function(){A='rmb';render()};
 $('bin').onclick=function(){open('in')};$('bout').onclick=function(){open('out')};$('badj').onclick=function(){open('adj')};$('real').oninput=upDiff;$('fl').onclick=function(e){var b=e.target.closest('button');if(b){F[A]=b.dataset.c;render()}};
 $('bk').onclick=function(){var t=JSON.stringify(S);(navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(function(){alert('已複製備份。請貼到備忘錄保存。')},function(){prompt('請全選並複製：',t)})};
